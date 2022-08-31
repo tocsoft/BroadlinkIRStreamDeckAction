@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Tocsoft.BroadlinkIRStreamDeckAction</AssemblyName>
+    <RootNamespace>Tocsoft.BroadlinkIRStreamDeckAction</RootNamespace>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Tocsoft.StreamDeck" Version="0.0.0-alpha.0.31" />
+  </ItemGroup>
+</Project>

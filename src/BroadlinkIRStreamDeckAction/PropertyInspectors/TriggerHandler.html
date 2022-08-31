@@ -1,0 +1,167 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Open PRs Property Inspector</title>
+    <link rel="stylesheet" href="sdpi.css">
+</head>
+<body>
+    <div class="sdpi-wrapper">
+        <!-- for more examples of the types of fields supported in property inspector visit:
+                Elgato Github PiSamples -> https://github.com/elgatosf/streamdeck-pisamples
+                and
+                Elgato SDK Documentation -> https://developer.elgato.com/documentation/stream-deck/sdk/property-inspector/
+        -->
+        <div type="textarea" class="sdpi-item" id="required_text">
+            <div class="sdpi-item-label">Device</div>
+            <select id="device" required onchange="sendSettings()">
+                <option></option>
+            </select>
+        </div>
+        <div type="textarea" class="sdpi-item" id="required_text">
+            <div class="sdpi-item-label">Payload</div>
+            <span class="sdpi-item-value">
+                <input type="text" id="payload" required onchange="sendSettings()" /> <button onclick="learnCommand()">Learn</button>
+            </span>
+        </div>
+    </div>
+
+    <script>
+        var uuid, actionInfo;
+        var websocket;
+        var settingsModel = {
+            device: null,
+            payload: ""
+        };
+
+        var updatingOptions = false;
+
+        function sendSettings() {
+            if (updatingOptions) return;
+            if (websocket) {
+                var val = document.getElementById("device").value;
+                if (val) {
+                    val = JSON.parse(val);
+                } else {
+                    val = null;
+                }
+                var before = JSON.stringify(settingsModel);
+
+                settingsModel = {
+                    device: val,
+                    payload: document.getElementById("payload").value
+                }
+
+                var after = JSON.stringify(settingsModel);
+                if (before !== after) {
+                    const json = {
+                        "action": actionInfo.action,
+                        "event": "setSettings",
+                        "context": uuid,
+                        "payload": settingsModel
+                    };
+
+                    websocket.send(JSON.stringify(json));
+                }
+            }
+        }
+
+        function learnCommand() {
+
+            if (websocket) {
+
+                const json = {
+                    "action": actionInfo.action,
+                    "event": "sendToPlugin",
+                    "context": uuid,
+                    "payload": { action: "learn" }
+                };
+                websocket.send(JSON.stringify(json));
+            }
+        }
+        function loadDevices() {
+            if (websocket) {
+
+                const json = {
+                    "action": actionInfo.action,
+                    "event": "sendToPlugin",
+                    "context": uuid,
+                    "payload": { action: "load" }
+                };
+
+                websocket.send(JSON.stringify(json));
+            }
+        }
+
+        function updateUiValues(settings) {
+            if (settings) {
+                settingsModel = settings;
+                if (settings.device) {
+                    // find the matching child option and mark it as selected
+                    if (settings.device) {
+                        document.getElementById("device").value = JSON.stringify(settings.device);
+                    } else {
+                        document.getElementById("device").value = null;
+                    }
+                }
+                if (settings.payload) {
+                    document.getElementById("payload").value = settings.payload;
+                }
+            }
+        }
+
+        function connectSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+            connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo);
+        }
+
+        function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+            uuid = inUUID;
+
+            actionInfo = JSON.parse(inActionInfo);
+            inInfo = JSON.parse(inInfo);
+            websocket = new WebSocket('ws://localhost:' + inPort);
+
+            websocket.onopen = function () {
+                var json = { event: inRegisterEvent, uuid: inUUID };
+                // register property inspector to Stream Deck
+                websocket.send(JSON.stringify(json));
+
+                loadDevices();
+            };
+
+            updateUiValues(actionInfo.payload.settings);
+
+            websocket.onmessage = function (evt) {
+                evt = JSON.parse(evt.data);
+                if (evt.event == "didReceiveSettings") {
+                    updateUiValues(evt.payload.settings);
+                }
+                if (evt.event == "sendToPropertyInspector") {
+                    if (evt.payload.event === 'commandLearned') {
+                        document.getElementById("payload").value = evt.payload.command;
+                        sendSettings();
+                    }
+                    if (evt.payload.event === 'devicesFound') {
+                        updatingOptions = true;
+                        document.getElementById("device").innerHTML = "";
+                        var options = "";
+                        for (var i = 0; i < evt.payload.devices.length; i++) {
+                            var device = evt.payload.devices[i];
+                            var isSelected = false;
+                            //if (settingsModel.device) {
+                            //    isSelected = settingsModel.device.address == device.address && settingsModel.device.macAddress == device.macAddress && settingsModel.device.deviceType == device.deviceType;
+                            //}
+                            options += `<option ${isSelected ? 'selected' : ''} value='${JSON.stringify(device)}'>${device.address}</option>`;
+                        }
+                        options += "<option value='null'>Not set</option>"
+                        document.getElementById("device").innerHTML = options;
+                        document.getElementById("device").value = JSON.stringify(settingsModel.device);
+                        updatingOptions = false;
+                    }
+                }
+            };
+        }
+
+    </script>
+</body>
+</html>
